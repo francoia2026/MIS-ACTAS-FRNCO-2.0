@@ -1,0 +1,409 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Space Grotesk", sans-serif;
+  
+  /* Azul Policía Nacional - Institutional Dark Blue Shades */
+  --color-slate-950: #050d1a; /* Extra dark navy */
+  --color-slate-900: #0b1a30; /* Dark navy (police primary) */
+  --color-slate-850: #10243f; /* Medium-dark navy block */
+  --color-slate-805: #132a48; /* Dark navy hover */
+  --color-slate-800: #163154; /* Navy border / card container */
+  --color-slate-755: #1c3c66; /* Button/input hover */
+  --color-slate-700: #234d80; /* Clear navy border */
+}
+
+/* Custom styling for police documents and print */
+@media print {
+  @page {
+    size: A4;
+    margin-top: 3.5cm !important;
+    margin-left: 3.5cm !important;
+    margin-right: 2.0cm !important;
+    margin-bottom: 2.0cm !important;
+  }
+
+  @page landscape-page {
+    size: A4 landscape;
+    margin-top: 1.5cm !important;
+    margin-left: 1.5cm !important;
+    margin-right: 1.5cm !important;
+    margin-bottom: 1.5cm !important;
+  }
+
+  @page rotulo-page {
+    size: A4 portrait;
+    margin-top: 1.5cm !important;
+    margin-left: 1.5cm !important;
+    margin-right: 1.5cm !important;
+    margin-bottom: 1.5cm !important;
+  }
+
+  .print-page.print-landscape {
+    page: landscape-page !important;
+    width: 297mm !important;
+    min-height: 210mm !important;
+  }
+
+  .print-page.print-rotulo {
+    page: rotulo-page !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+  }
+
+  /* Hide UI elements */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Reset background and padding for print pages */
+  body {
+    background-color: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-container {
+    padding: 0 !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .print-scaling-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    transform: none !important;
+    position: relative !important;
+    left: auto !important;
+    margin-left: 0 !important;
+    top: auto !important;
+  }
+
+  .print-page {
+    border: none !important;
+    padding: 0 !important; /* Desactivar paddings simulados para usar el margen real de @page */
+    margin: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    page-break-after: always;
+    width: auto !important;
+    min-height: auto !important;
+    height: auto !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+  }
+
+  /* Force print background colors for styled sections */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Make all filled fields have normal weight, no underline, and no shading/background during print, matching the document body text */
+  #print-sheet span[style*="bold"],
+  #print-sheet span[style*="font-weight"],
+  #print-sheet span[style*="underline"],
+  #print-sheet span[style*="text-decoration"],
+  #print-sheet strong[style*="underline"],
+  #print-sheet strong[style*="text-decoration"],
+  #print-sheet strong[style*="bold"],
+  #print-sheet strong[style*="font-weight"],
+  #print-sheet b[style*="underline"],
+  #print-sheet b[style*="text-decoration"],
+  #print-sheet b[style*="bold"],
+  #print-sheet b[style*="font-weight"],
+  #print-sheet p strong,
+  #print-sheet p b,
+  #print-sheet li strong,
+  #print-sheet li b,
+  #print-sheet span.font-bold,
+  #print-sheet span[class*="font-bold"],
+  #print-sheet .border-b,
+  #print-sheet .border-dotted,
+  #print-sheet [class*="border-dotted"] {
+    font-weight: normal !important;
+    text-decoration: none !important;
+    background: none !important;
+    background-color: transparent !important;
+    border-bottom: none !important;
+    border-bottom-width: 0px !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}
+
+/* Custom visual styles for polished police document preview in dashboard */
+.police-lined-text {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px);
+  background-size: 100% 2rem;
+  line-height: 2rem;
+}
+
+.police-seal {
+  width: 90px;
+  height: 90px;
+  border: 2px dashed rgba(0,0,0,0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  text-align: center;
+}
+
+/* For beautiful interactive preview cards on screen resembling physical sheets */
+.print-page {
+  box-shadow: none !important;
+  border: none !important;
+  padding: 1.5rem !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 640px) {
+  .print-page {
+    padding: 3rem !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .print-page {
+    padding-left: 3.5cm !important;
+    padding-top: 3.5cm !important;
+    padding-right: 2.0cm !important;
+    padding-bottom: 2.0cm !important;
+  }
+  .print-page.print-landscape {
+    padding: 1.5cm !important;
+  }
+  .print-page.print-rotulo {
+    padding: 1.2cm !important;
+  }
+}
+
+/* Hide scrollbars for full clean preview */
+.hide-scrollbar::-webkit-scrollbar, 
+::-webkit-scrollbar.hide-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* ==========================================================================
+   UNIFICACIÓN HOMOGÉNEA DE TIPOGRAFÍA Y TAMAÑO EN DOCUMENTOS POLICIALES
+   ========================================================================== */
+.custom-font,
+.custom-font * {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 12pt !important;
+  font-weight: normal !important; /* SIN NEGRITA */
+  line-height: 1.8 !important;
+}
+
+/* Sello de peritaje o firmas secundarias unificadas */
+.custom-font td,
+.custom-font th {
+  font-size: 11pt !important;
+  font-weight: normal !important; /* SIN NEGRITA */
+}
+
+/* Formato unificado para firmas y leyendas inferiores */
+.postfirmas,
+.postfirmas * {
+  font-size: 11pt !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-weight: normal !important; /* SIN NEGRITA */
+}
+
+/* Exceptuar únicamente el título (Denominación) del acta en letra Impact tamaño 16, en negrita */
+.custom-font div[style*="Impact"],
+.custom-font h1,
+.custom-font h2,
+.custom-font .titulo-acta,
+.custom-font .document-title,
+.custom-font .title-f {
+  font-family: Impact, "Arial Black", sans-serif !important;
+  font-size: 16pt !important;
+  font-weight: bold !important; /* EN NEGRITA */
+}
+
+/* Ajustes específicos para que la Cadena de Custodia se presente en formato VERTICAL sin desbordamientos */
+.cadena-custodia-portrait,
+.cadena-custodia-portrait *:not(h1):not(.titulo-acta):not([style*="Impact"]) {
+  /* Restablece el ancho de la caja y recupera el estilo monospace original */
+  box-sizing: border-box !important;
+  font-family: Courier, "Courier New", monospace !important;
+}
+
+.cadena-custodia-portrait table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+.cadena-custodia-portrait th,
+.cadena-custodia-portrait td {
+  font-size: 7.2pt !important;
+  line-height: 1.25 !important;
+  font-family: Courier, "Courier New", monospace !important;
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+  padding: 4px 2px !important;
+}
+
+.cadena-custodia-portrait th {
+  font-weight: bold !important;
+  background-color: #f2f2f2 !important;
+}
+
+/* ==========================================================================
+   POLISHED TOUCH FIELDS & FOCUS EXPANSION (REQUEST 1 & 4)
+   ========================================================================== */
+.no-print input[type="text"],
+.no-print input[type="time"],
+.no-print input[type="date"],
+.no-print input[type="number"],
+.no-print textarea,
+.no-print select {
+  min-height: 48px !important;
+  border-radius: 0.75rem !important; /* rounded-xl */
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  font-size: 0.825rem !important;
+  line-height: 1.5 !important;
+  border: 1px solid #cbd5e1 !important; /* border-slate-300 */
+  background-color: #f8fafc !important; /* bg-slate-50 */
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+  outline: none !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Hover state: beautiful soft outline transition */
+.no-print input[type="text"]:hover,
+.no-print input[type="time"]:hover,
+.no-print input[type="date"]:hover,
+.no-print input[type="number"]:hover,
+.no-print textarea:hover,
+.no-print select:hover {
+  border-color: #94a3b8 !important; /* border-slate-400 */
+  background-color: #ffffff !important;
+}
+
+/* Active focus state: Visual expansion + institutional green border */
+.no-print input[type="text"]:focus,
+.no-print input[type="time"]:focus,
+.no-print input[type="date"]:focus,
+.no-print input[type="number"]:focus,
+.no-print textarea:focus,
+.no-print select:focus {
+  border-width: 2px !important;
+  border-color: #0b5a3e !important; /* Deep PNP Institutional Green */
+  background-color: #ffffff !important;
+  transform: translateY(-1.5px) scale(1.015) !important; /* Visual tactile expansion */
+  box-shadow: 0 4px 15px rgba(11, 90, 62, 0.12) !important; /* Elegant shadow glows green */
+  font-weight: 500 !important;
+}
+
+/* Cards styled cleanly with shadows and elevated hover effects */
+.tactile-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.tactile-card:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* ==========================================================================
+   DARK MODE OVERRIDES FOR SIDEBAR EDIT FIELD CONTRASTS (REQUEST 2)
+   ========================================================================== */
+.dark .no-print input[type="text"],
+.dark .no-print input[type="time"],
+.dark .no-print input[type="date"],
+.dark .no-print input[type="number"],
+.dark .no-print textarea,
+.dark .no-print select,
+.dark input,
+.dark textarea,
+.dark select {
+  border: 1px solid #163154 !important; /* Slate-800 Navy Border */
+  background-color: #050d1a !important; /* Slate-950 Extra Dark Navy */
+  color: #ffffff !important; /* Pure White Text */
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Hover state on Dark Mode inputs */
+.dark .no-print input[type="text"]:hover,
+.dark .no-print input[type="time"]:hover,
+.dark .no-print input[type="date"]:hover,
+.dark .no-print input[type="number"]:hover,
+.dark .no-print textarea:hover,
+.dark .no-print select:hover,
+.dark input:hover,
+.dark textarea:hover,
+.dark select:hover {
+  border-color: #234d80 !important; /* Slate-700 Border */
+  background-color: #0b1a30 !important; /* Slate-900 Dark Navy */
+  color: #ffffff !important;
+}
+
+/* Active focus state in Dark Mode (Emerald PNP Green) */
+.dark .no-print input[type="text"]:focus,
+.dark .no-print input[type="time"]:focus,
+.dark .no-print input[type="date"]:focus,
+.dark .no-print input[type="number"]:focus,
+.dark .no-print textarea:focus,
+.dark .no-print select:focus,
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-width: 2px !important;
+  border-color: #10b981 !important; /* Emerald-500 Green Accent */
+  background-color: #050d1a !important; /* Slate-950 Extra Dark */
+  transform: translateY(-1.5px) scale(1.015) !important;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.22) !important;
+  color: #ffffff !important;
+}
+
+/* Cards & forms backgrounds in Dark Mode Sidebar */
+.dark .bg-white {
+  background-color: rgba(11, 26, 48, 0.55) !important; /* Translucent Slate-900 Dark Navy */
+  border-color: #163154 !important; /* Slate-800 Navy Border */
+  color: #f1f5f9 !important;
+}
+
+/* Typography styles to maintain excellent contrast */
+.dark .text-slate-800,
+.dark [class*="text-slate-800"] {
+  color: #f8fafc !important; /* Slate-50 Text */
+}
+
+.dark .text-slate-700,
+.dark [class*="text-slate-705"],
+.dark [class*="text-slate-700"] {
+  color: #e2e8f0 !important; /* Slate-200 Text */
+}
+
+.dark .text-slate-500,
+.dark [class*="text-slate-500"] {
+  color: #94a3b8 !important; /* Slate-400 Subtle Text */
+}
+
+.dark select option {
+  background-color: #0b1a30 !important;
+  color: #f1f5f9 !important;
+}

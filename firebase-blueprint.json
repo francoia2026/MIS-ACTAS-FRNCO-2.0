@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Represents an authorized agent profile with access tokens.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string" },
+        "tokens": { "type": "number" },
+        "autorizado": { "type": "boolean" },
+        "user_gemini_api_key": { "type": "string" }
+      },
+      "required": ["phoneNumber", "tokens", "autorizado"]
+    },
+    "DraftState": {
+      "title": "Draft State",
+      "description": "Represents the serialized active draft state from the application's React state.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string" },
+        "stateJson": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["phoneNumber", "stateJson", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{phoneNumber}": {
+      "schema": "User",
+      "description": "Collection of authorized users and their token balances."
+    },
+    "/drafts/{phoneNumber}": {
+      "schema": "DraftState",
+      "description": "User's current working document draft values."
+    }
+  }
+}
