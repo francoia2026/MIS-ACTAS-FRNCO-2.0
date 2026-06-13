@@ -41,10 +41,10 @@ const caseResolutionPlugin = () => {
       if (srcFolder !== 'src') {
         const corrected = getCorrectCasing(source);
         if (corrected !== source) {
-          if (corrected.startsWith('/') && !path.isAbsolute(corrected)) {
+          if (corrected.startsWith('/') && !corrected.startsWith(process.cwd())) {
             return path.resolve(process.cwd(), corrected.slice(1));
           }
-          return corrected;
+          return path.resolve(process.cwd(), corrected);
         }
       }
       return null;
@@ -58,6 +58,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve('.'),
+        '/src': path.resolve(srcFolder),
+        'src': path.resolve(srcFolder),
       },
     },
     server: {
