@@ -5,32 +5,46 @@ import fs from 'fs';
 import {defineConfig} from 'vite';
 
 // Find the actual case-insensitive folder name for 'src'
-const getSrcFolder = () => {
-  const folders = ['src', 'Src', 'SRC'];
-  for (const f of folders) {
-    if (fs.existsSync(path.resolve(process.cwd(), f))) {
-      return f;
-    }
+const getActualSrcFolder = () => {
+  try {
+    const files = fs.readdirSync(process.cwd());
+    const found = files.find(f => f.toLowerCase() === 'src');
+    return found || 'src';
+  } catch (e) {
+    return 'src';
   }
-  return 'src'; // default fallback
 };
 
-const srcFolder = getSrcFolder();
+const srcFolder = getActualSrcFolder();
+
+const getCorrectCasing = (sourcePath: string) => {
+  if (srcFolder === 'src') return sourcePath;
+  let corrected = sourcePath;
+  corrected = corrected.replace(/([/\\])src([/\\])/i, `$1${srcFolder}$2`);
+  if (corrected.startsWith('src/') || corrected.startsWith('src\\')) {
+    corrected = srcFolder + corrected.slice(3);
+  }
+  return corrected;
+};
 
 const caseResolutionPlugin = () => {
   return {
     name: 'case-resolution',
-    transformIndexHtml(html: string) {
-      // Replace "/src/" with whichever casing actually exists on disk
-      return html.replace(/\/src\//gi, `/${srcFolder}/`);
+    enforce: 'pre' as const,
+    transformIndexHtml: {
+      order: 'pre' as const,
+      handler(html: string) {
+        return html.replace(/\/src\//gi, `/${srcFolder}/`);
+      }
     },
     resolveId(source: string) {
       if (srcFolder !== 'src') {
-        if (source.startsWith('/src/')) {
-          return path.resolve(process.cwd(), srcFolder, source.slice(5));
-        }
-        if (source.startsWith('src/')) {
-          return path.resolve(process.cwd(), srcFolder, source.slice(4));
+        const corrected = getCorrectCasing(source);
+        if (corrected !== source) {
+          if (corrected.startsWith('/') && !path.isAbsolute(corrected)) {
+            return path.resolve(process.cwd(), corrected.slice(1));
+          }
+          return corrected;
         }
       }
       return null;
@@ -43,7 +57,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), caseResolutionPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve('.'),
       },
     },
     server: {
