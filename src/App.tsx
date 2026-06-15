@@ -4,7 +4,7 @@ import { DocumentRenderer } from "./components/DocumentRenderer";
 import { INITIAL_STATE, LISTA_DOCUMENTOS } from "./templatesData";
 import { LP_DERECHO_EMPTY_JSON } from "./lpTemplatesSchema";
 import { ActasState, SharedPoliceMetadata, SharedDetenidoMetadata } from "./types";
-import { Menu, ShieldAlert, Printer, RefreshCw, FileText, CheckCircle, ShieldOff, Coins, Key, Sparkles, AlertCircle, Lock, PlusCircle, Camera, AlertTriangle, X, RotateCw, Video, VideoOff, Database, Smartphone, UserCheck, Edit3, Eye, Moon, Sun, Trash2, MessageSquare, LogOut, Cloud, CloudOff } from "lucide-react";
+import { Menu, ShieldAlert, Printer, RefreshCw, FileText, CheckCircle, ShieldOff, Coins, Key, Sparkles, AlertCircle, Lock, PlusCircle, Camera, AlertTriangle, X, RotateCw, Video, VideoOff, Database, Smartphone, UserCheck, Edit3, Eye, Moon, Sun, Trash2, MessageSquare, LogOut, Cloud, CloudOff, Mic, Pause, Play, Square, Volume2 } from "lucide-react";
 import { PhoneUser } from "./types";
 import {
   seedDefaultUsersIfNeeded,
@@ -72,6 +72,221 @@ export default function App() {
 
   // Video Ref to attach stream
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
+
+  // Voice Recorder States
+  const [showVoiceRecorderModal, setShowVoiceRecorderModal] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [recordingTime, setRecordingTime] = useState<number>(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [recorderError, setRecorderError] = useState<string | null>(null);
+  const [isConvertingAudio, setIsConvertingAudio] = useState<boolean>(false);
+  const [targetDocType, setTargetDocType] = useState<string>(() => "intervencion");
+
+  // Keep a ref to clean up recording timers and media recorders
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+  const timerRef = React.useRef<any>(null);
+
+  const startRecording = async () => {
+    setRecorderError(null);
+    setAudioUrl(null);
+    setAudioBlob(null);
+    setRecordingTime(0);
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const options = { mimeType: "audio/webm" };
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || "audio/webm" });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        
+        // Stop all track streams to release microphone
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(250); // Get chunks every 250ms
+      setIsRecording(true);
+      setIsPaused(false);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error("No se pudo iniciar la grabación de voz:", err);
+      setRecorderError("No se pudo acceder al micrófono. Asegúrate de otorgar los permisos correspondientes.");
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording && !isPaused) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isRecording && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setIsPaused(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setAudioUrl(null);
+    setAudioBlob(null);
+    setRecordingTime(0);
+    audioChunksRef.current = [];
+  };
+
+  const convertRecordedAudio = async () => {
+    if (!audioBlob) return;
+    setIsConvertingAudio(true);
+    setRecorderError(null);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        try {
+          const base64Audio = reader.result as string;
+
+          const response = await fetch("/api/convert-audio-document", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              docType: targetDocType,
+              audio: base64Audio,
+              police: state.police,
+              detenido: state.detenido,
+              docState: state[targetDocType as keyof ActasState],
+            }),
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Error al procesar el audio.");
+          }
+
+          const data = await response.json();
+
+          if (targetDocType === "intervencion") {
+            if (data.precedentes) handleUpdateDocField("intervencion", "circunstanciasPrecedentes", data.precedentes);
+            if (data.concomitantes) handleUpdateDocField("intervencion", "circunstanciasConcomitantes", data.concomitantes);
+            if (data.posteriores) handleUpdateDocField("intervencion", "circunstanciasPosteriores", data.posteriores);
+          } else {
+            const textResult = data.result || "";
+            if (!textResult) {
+              throw new Error("La IA no devolvió redacción para el acta.");
+            }
+
+            switch (targetDocType) {
+              case "detencion":
+                handleUpdateDocField("detencion", "delitoFlagranteContexto", textResult);
+                break;
+              case "comunicacionTelefonica":
+                handleUpdateDocField("comunicacionTelefonica", "resultadoComunicacion", textResult);
+                break;
+              case "detencionMenor":
+                handleUpdateDocField("detencionMenor", "motivoInfraccionLeyes", textResult);
+                break;
+              case "registroPersonal":
+                handleUpdateDocField("registroPersonal", "bienesObjetoRegistro", textResult);
+                break;
+              case "registroVehicular":
+                handleUpdateDocField("registroVehicular", "bienesObjetoRegistro", textResult);
+                break;
+              case "registroEquipajes":
+                handleUpdateDocField("registroEquipajes", "bienesObjetoRegistro", textResult);
+                break;
+              case "recepcion":
+                handleUpdateDocField("recepcion", "descripcionBienObjeto", textResult);
+                break;
+              case "incautacion":
+                handleUpdateDocField("incautacion", "individualizacionBien", textResult);
+                break;
+              case "situacionVehicular":
+                handleUpdateDocField("situacionVehicular", "descripcionEspecificaCompleta", textResult);
+                break;
+              default:
+                break;
+            }
+          }
+
+          setState((prev) => ({
+            ...prev,
+            currentDocId: targetDocType,
+          }));
+
+          setShowVoiceRecorderModal(false);
+          alert(`¡Audio procesado con éxito! Se ha redactado y actualizado el documento "${LISTA_DOCUMENTOS.find(d => d.id === targetDocType)?.title || targetDocType}".`);
+          
+          setAudioUrl(null);
+          setAudioBlob(null);
+          setRecordingTime(0);
+        } catch (innerErr: any) {
+          console.error(innerErr);
+          setRecorderError(innerErr.message || "Error al conectar con el motor de transcripción IA.");
+        } finally {
+          setIsConvertingAudio(false);
+        }
+      };
+    } catch (err: any) {
+      console.error(err);
+      setRecorderError(err.message || "Error general al codificar el audio.");
+      setIsConvertingAudio(false);
+    }
+  };
 
   React.useEffect(() => {
     // Si cambia el ID del acta actual o el estado de los documentos, restablecemos para ver el formulario normal
@@ -1362,39 +1577,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Cloud Synchronization status badge */}
-          {currentUser && currentUser.phoneNumber && (
-            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border font-mono text-[9px] uppercase tracking-wide transition-all ${
-              connectionStatus === 'connected'
-                ? isCloudSynced
-                  ? 'bg-emerald-950/20 text-emerald-400 border-emerald-900/35'
-                  : 'bg-amber-950/20 text-amber-400 border-amber-900/35 animate-pulse'
-                : 'bg-rose-950/20 text-rose-450 border-rose-900/35'
-            }`}>
-              {connectionStatus === 'connected' ? (
-                isCloudSynced ? (
-                  <>
-                    <Cloud className="w-3 h-3 text-emerald-400 shrink-0 font-bold" />
-                    <span className="hidden sm:inline font-bold">Nube Sincronizada</span>
-                    <span className="sm:hidden font-bold">NUBE</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-3 h-3 text-amber-400 shrink-0 animate-spin" />
-                    <span className="hidden sm:inline">Guardando...</span>
-                    <span className="sm:hidden font-bold">SYNC...</span>
-                  </>
-                )
-              ) : (
-                <>
-                  <CloudOff className="w-3 h-3 text-rose-400 shrink-0" />
-                  <span className="hidden sm:inline font-bold">Sin Conexión</span>
-                  <span className="sm:hidden font-bold">LOCAL</span>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Botón Hamburguesa */}
           <button
             type="button"
@@ -1451,6 +1633,20 @@ export default function App() {
                   <span>FOTO IA (ESCANEAR)</span>
                 </button>
 
+                {/* 2.5. Botón GRABADORA DE VOZ */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVoiceRecorderModal(true);
+                    setTargetDocType(state.currentDocId || "intervencion");
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[11px] font-bold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer border-t border-slate-800/40"
+                >
+                  <Mic className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                  <span>GRABADORA DE VOZ IA</span>
+                </button>
+
                 {/* 3. Botón de Administración de Usuarios (si aplica) */}
                 {showAdminButton && (
                   <button
@@ -1493,7 +1689,6 @@ export default function App() {
             ref={fileInputRef}
             onChange={handlePhotoUpload}
             accept="image/*"
-            capture="environment"
             className="hidden"
           />
         </div>
@@ -1834,6 +2029,219 @@ export default function App() {
             <div className="bg-slate-950/40 px-5 py-3 border-t border-slate-850 text-center">
               <span className="text-[10px] text-slate-500 font-mono">
                 Estándar Código Procesal Penal del Perú • Redacción Policial Asistida
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GRABADORA DE VOZ IA */}
+      {showVoiceRecorderModal && (
+        <div className="fixed inset-0 z-[1000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-slate-950/60 p-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white">
+                  <Mic className="w-4 h-4 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">
+                    GRABADORA DE VOZ IA
+                  </h3>
+                  <p className="text-[10px] text-emerald-400 font-mono">
+                    DICTADO DIRECTO Y REDACCIÓN ELECTRÓNICA PNP
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  cancelRecording();
+                  setShowVoiceRecorderModal(false);
+                }}
+                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-350 leading-relaxed">
+                Hable de forma clara y pausada detallando los hechos de la diligencia. La Inteligencia Artificial de Gemini transcribirá su voz y la convertirá en actas redactadas con estricto apego al estándar del Código Procesal Penal.
+              </p>
+
+              {/* 1. SELECCIÓN DE RECEPTOR DE ACTA */}
+              <div className="space-y-1.5">
+                <label className="block text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
+                  Seleccione Acta para Insertar Redacción:
+                </label>
+                <select
+                  disabled={isRecording || isConvertingAudio}
+                  value={targetDocType}
+                  onChange={(e) => setTargetDocType(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-slate-700 transition-all cursor-pointer font-bold uppercase tracking-wide font-sans"
+                >
+                  {LISTA_DOCUMENTOS.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.title} ({doc.pages})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. AREA GRABADORA PRINCIPAL */}
+              <div className="bg-slate-950 rounded-xl p-6 border border-slate-800 flex flex-col items-center justify-center relative min-h-[160px] space-y-4">
+                {/* Visualizer / Pulse wave */}
+                {isRecording && !isPaused ? (
+                  <div className="flex items-center gap-1.5 h-10">
+                    <span className="w-1.5 h-6 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.1s]" />
+                    <span className="w-1.5 h-9 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1.5 h-7 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.3s]" />
+                    <span className="w-1.5 h-10 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    <span className="w-1.5 h-6 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.5s]" />
+                  </div>
+                ) : isPaused ? (
+                  <div className="flex items-center gap-1 h-10 opacity-40">
+                    <span className="w-1.5 h-4 bg-amber-500 rounded-full" />
+                    <span className="w-1.5 h-4 bg-amber-500 rounded-full" />
+                    <span className="w-1.5 h-4 bg-amber-500 rounded-full" />
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-805 flex items-center justify-center text-slate-500">
+                    <Mic className="w-5 h-5 text-slate-400" />
+                  </div>
+                )}
+
+                {/* Time indicators */}
+                <div className="text-center">
+                  <p className="text-xl font-mono font-bold tracking-widest text-white">
+                    {(() => {
+                      const mins = Math.floor(recordingTime / 60);
+                      const secs = recordingTime % 60;
+                      return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+                    })()}
+                  </p>
+                  <p className="text-[9px] text-slate-500 font-mono uppercase mt-0.5 tracking-wider">
+                    {isRecording ? (isPaused ? "GRABACIÓN EN PAUSA" : "GRABANDO SEÑAL DE AUDIO") : "DISPOSITIVO LISTO"}
+                  </p>
+                </div>
+
+                {/* Micro record control buttons */}
+                <div className="flex items-center gap-3">
+                  {!isRecording && !audioUrl ? (
+                    <button
+                      onClick={startRecording}
+                      disabled={isConvertingAudio}
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.25)] text-white font-extrabold text-[10px] uppercase tracking-wider py-2 px-4 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      Iniciar Grabación
+                    </button>
+                  ) : isRecording ? (
+                    <>
+                      {isPaused ? (
+                        <button
+                          onClick={resumeRecording}
+                          type="button"
+                          className="bg-slate-800 hover:bg-slate-755 text-slate-200 font-extrabold text-[10px] uppercase tracking-wider py-2 px-3 border border-slate-700 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Play className="w-3.5 h-3.5 text-amber-400" />
+                          Continuar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={pauseRecording}
+                          type="button"
+                          className="bg-slate-800 hover:bg-slate-755 text-slate-200 font-extrabold text-[10px] uppercase tracking-wider py-2 px-3 border border-slate-700 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Pause className="w-3.5 h-3.5 text-amber-500" />
+                          Pausar
+                        </button>
+                      )}
+
+                      <button
+                        onClick={stopRecording}
+                        type="button"
+                        className="bg-rose-950/20 text-rose-400 hover:bg-rose-950/40 border border-rose-900/35 font-extrabold text-[10px] uppercase tracking-wider py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        Terminar
+                      </button>
+                    </>
+                  ) : null}
+
+                  {(isRecording || audioUrl) && (
+                    <button
+                      onClick={cancelRecording}
+                      disabled={isConvertingAudio}
+                      type="button"
+                      className="text-slate-505 hover:text-slate-350 text-[10px] font-bold uppercase tracking-wider px-2 cursor-pointer"
+                    >
+                      Resetear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. REVIEW AUDIO PLAYBACK SECTION */}
+              {audioUrl && !isRecording && (
+                <div className="bg-slate-950 rounded-xl p-4 border border-slate-805 flex flex-col space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                      Escuchar Grabación de Borrador:
+                    </span>
+                  </div>
+                  <audio src={audioUrl} controls className="w-full h-8 cursor-pointer" />
+                </div>
+              )}
+
+              {/* RECORDER DEVIATION REPORT ERRORS */}
+              {recorderError && (
+                <div className="bg-red-950/40 border border-red-900/30 rounded-xl p-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px]">
+                    <p className="font-bold text-red-300">Aviso del Sistema</p>
+                    <p className="text-red-400 mt-0.5 leading-relaxed">{recorderError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ACTION BUTTON CONTROLS TO SEND TO IA */}
+              {audioUrl && !isRecording && (
+                <button
+                  onClick={convertRecordedAudio}
+                  disabled={isConvertingAudio}
+                  type="button"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs uppercase tracking-wider py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-100" />
+                  <span>Procesar y Redactar Acta de Voz</span>
+                </button>
+              )}
+
+              {/* LOADER PANEL */}
+              {isConvertingAudio && (
+                <div className="bg-slate-950 rounded-xl p-5 border border-emerald-900/40 flex flex-col items-center justify-center space-y-3">
+                  <RefreshCw className="w-6 h-6 text-emerald-500 animate-spin" />
+                  <div className="text-center space-y-1">
+                    <p className="text-[10.5px] font-extrabold text-emerald-400 font-mono uppercase tracking-wider animate-pulse">
+                      Sincronizando con Gemini AI...
+                    </p>
+                    <p className="text-[9px] text-slate-500 max-w-xs leading-relaxed font-mono">
+                      Transcribiendo dictado, estructurando contenido y aplicando terminología oficial del Código Procesal Penal.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-950/40 px-5 py-3 border-t border-slate-850 text-center">
+              <span className="text-[10px] text-slate-500 font-mono">
+                Dictado Penal • PNP Generación de Actas Electrónicas por Voz
               </span>
             </div>
           </div>

@@ -140,6 +140,143 @@ ${docContext}`;
   }
 });
 
+// REST API for Voice Recording Transcription and Redaction of police documents via Gemini
+app.post("/api/convert-audio-document", async (req, res) => {
+  try {
+    const { docType, audio, police, detenido, docState } = req.body;
+    if (!audio) {
+      return res.status(400).json({ error: "No se proporcionó ningún archivo de audio." });
+    }
+
+    const ai = getGeminiClient();
+
+    const matches = audio.match(/^data:([A-Za-z-+\/0-9.-]+);base64,(.+)$/);
+    let mimeType = "audio/webm";
+    let base64Data = audio;
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      base64Data = matches[2];
+    }
+
+    const audioPart = {
+      inlineData: {
+        mimeType: mimeType,
+        data: base64Data,
+      },
+    };
+
+    const instructorInfo = police 
+      ? `Instructor PNP: ${police.instructorGrado} ${police.instructorNombres} ${police.instructorApellidos} con Carnet CIP N° ${police.instructorCIP}. Distrito: ${police.distrito}, Lugar: ${police.lugarCiudad}.` 
+      : "Instructor PNP no especificado.";
+    const detenidoInfo = detenido 
+      ? `Persona Intervenida/Detenida: ${detenido.nombres} ${detenido.apellidos}, de sexo ${detenido.sexo || "M"}, edad ${detenido.edad || ""} años, DNI N° ${detenido.dni || ""}, natural de ${detenido.naturalDe || ""}, con domicilio en ${detenido.domiciliadoEn || ""}, ocupación ${detenido.ocupacion || ""}.` 
+      : "Persona intervenida no especificada.";
+    const docContext = docState 
+      ? `Detalles adicionales de los inputs del formulario del acta actual: ${JSON.stringify(docState)}` 
+      : "";
+
+    let systemInstruction = `Eres un redactor experto en terminología jurídica, penal y policial de la Policía Nacional del Perú (PNP), especializado en actas según el Código Procesal Penal (CPP) peruano.
+Tu tarea es escuchar el audio suministrado (el cual es la narración hablada o grabada de un efectivo policial sobre un suceso, intervención o diligencia) y convertirlo en un acta formal oficial, redactada en un lenguaje técnico-policial de alto nivel, preciso, formal, sobrio, cronológico e impecable.
+SIEMPRE habla en tercera persona del singular como "el personal policial interviniente", "el instructor", "el intervenido" o "el detenido". NUNCA en primera persona ("yo", "nosotros"). Evita adjetivos innecesarios u opiniones personales. Ajusta la redacción rigurosamente al estándar de un informe para el Fiscal de Turno.`;
+
+    if (docType === "intervencion") {
+      systemInstruction += `\nDebes estructurar el texto estrictamente en tres categorías:
+1. Circunstancias Precedentes: Hechos previos a la intervención, patrullaje en zona asignada, actitud sospechosa detectada, etc.
+2. Circunstancias Concomitantes: El momento de la intervención física, persecución, reducción, hallazgo de especies, lectura de derechos, etc.
+3. Circunstancias Posteriores: Traslado a la comisaría, pesaje preliminar de drogas si aplica, registro o puesta a disposición de la sección.
+
+DEBES responder estrictamente con un objeto JSON válido con exactamente estos tres campos (sin markdown adicional):
+- precedentes: texto descriptivo técnico formal policial.
+- concomitantes: texto descriptivo técnico formal policial.
+- posteriores: texto descriptivo técnico formal policial.`;
+
+      const userPrompt = `Escucha el audio adjunto y redacta minuciosamente las circunstancias del acta de intervención policial.
+Información de referencia del caso:
+${instructorInfo}
+${detenidoInfo}
+${docContext}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [audioPart, userPrompt],
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              precedentes: { type: Type.STRING, description: "Narra detalladamente las circunstancias precedentes (previas)" },
+              concomitantes: { type: Type.STRING, description: "Narra detalladamente las circunstancias concomitantes (hecho en sí)" },
+              posteriores: { type: Type.STRING, description: "Narra detalladamente las circunstancias posteriores (traslados/entrega)" },
+            },
+            required: ["precedentes", "concomitantes", "posteriores"]
+          },
+          temperature: 0.3
+        }
+      });
+
+      const text = response.text || "{}";
+      const resultObj = JSON.parse(text);
+      return res.json(resultObj);
+    } else {
+      // General individual page paragraph generator
+      let promptPrefix = "";
+      if (docType === "detencion") {
+        promptPrefix = "Genera el sustento legal formal de la detención en flagrante delito (Art. 259 del CPP) detallando el hecho constitutivo de delito, orden cronológico y los indicios iniciales observados.";
+      } else if (docType === "registroPersonal") {
+        promptPrefix = "Genera la descripción formal y técnica del registro personal del investigado (Art. 210 del CPP), detallando las especies halladas, vestimenta u objetos portados, indicando si colaboró en todo momento.";
+      } else if (docType === "registroVehicular") {
+        promptPrefix = "Genera la descripción formal y técnica del registro exhaustivo del vehículo (Art. 210 del CPP), detallando las especies encontradas bajo custodia.";
+      } else if (docType === "registroEquipajes") {
+        promptPrefix = "Genera la descripción detallada e incautación registrada durante el registro físico de equipajes, mochilas o bultos portados por el sospechoso.";
+      } else if (docType === "comunicacionTelefonica") {
+        promptPrefix = "Narra cronológica y formalmente el resultado de la comunicación telefónica directa para salvaguardar el derecho del detenido, indicando el número de teléfono, operador, quién contestó, parentesco y su manifestación.";
+      } else if (docType === "detencionMenor") {
+        promptPrefix = "Sustenta minuciosamente los motivos formales de la retención del menor de edad por presunta infracción a la ley penal (según Ley de Justicia Penal Juvenil y DL 1348).";
+      } else if (docType === "recepcion") {
+        promptPrefix = "Escribe una descripción de los bienes, prendas u objetos ofrecidos voluntariamente y entregados por un tercero para actas de recepción formal.";
+      } else if (docType === "incautacion") {
+        promptPrefix = "Genera la descripción minuciosa y la adecuada individualización técnica del bien incautado en flagrancia (marca, IMEI o series, rotulado y lacrado de seguridad de acuerdo a ley).";
+      } else if (docType === "situacionVehicular") {
+        promptPrefix = "Describe minuciosamente las observaciones físicas externas e internas halladas en el vehículo para su internamiento preventivo (inventariado de estado).";
+      } else {
+        promptPrefix = "Redacta la sección correspondiente del acta basado estrictamente en el suceso reportado verbalmente en el audio:";
+      }
+
+      const userPrompt = `Escucha el audio adjunto y redacta minuciosamente el contenido del acta policial.
+${promptPrefix}
+Información de referencia PNP para el acta:
+${instructorInfo}
+${detenidoInfo}
+${docContext}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [audioPart, userPrompt],
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              result: { type: Type.STRING, description: "La redacción formal estructurada basada en lo escuchado en el audio." }
+            },
+            required: ["result"]
+          },
+          temperature: 0.3
+        }
+      });
+
+      const text = response.text || "{}";
+      const resultObj = JSON.parse(text);
+      return res.json({ result: resultObj.result || "" });
+    }
+  } catch (err: any) {
+    console.error("Error in convert-audio-document:", err);
+    return res.status(500).json({ error: err.message || "Error al procesar el audio por IA." });
+  }
+});
+
 // REST API to dynamically redirect wa.link short links and append custom text (resolving the actual phone number)
 app.get("/api/soporte-pnp", async (req, res) => {
   const op = req.query.op?.toString();
