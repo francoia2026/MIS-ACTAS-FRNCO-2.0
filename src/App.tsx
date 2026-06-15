@@ -263,7 +263,7 @@ export default function App() {
       if (savedUsers) {
         const parsed = JSON.parse(savedUsers);
         // Garantizar que los administradores requeridos existan en la lista
-        const adminIds = ["952171449F", "931615705J"];
+        const adminIds = ["952171449FR", "931615705JR"];
         let updated = false;
         adminIds.forEach(adminPhone => {
           if (!parsed.some((u: any) => u.phoneNumber === adminPhone)) {
@@ -280,8 +280,8 @@ export default function App() {
       console.error("Error al cargar usuarios", e);
     }
     const defaults: PhoneUser[] = [
-      { phoneNumber: "952171449F", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
-      { phoneNumber: "931615705J", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
+      { phoneNumber: "952171449FR", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
+      { phoneNumber: "931615705JR", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "999999999", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "987654321", tokens: 15, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "900100200", tokens: 5, autorizado: true, user_gemini_api_key: "" }
@@ -387,8 +387,8 @@ export default function App() {
   React.useEffect(() => {
     // 1. Sembrar los agentes PNP de prueba por defecto si la base de datos está vacía en la nube
     const defaults: PhoneUser[] = [
-      { phoneNumber: "952171449F", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
-      { phoneNumber: "931615705J", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
+      { phoneNumber: "952171449FR", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
+      { phoneNumber: "931615705JR", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "999999999", tokens: 9999, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "987654321", tokens: 15, autorizado: true, user_gemini_api_key: "" },
       { phoneNumber: "900100200", tokens: 5, autorizado: true, user_gemini_api_key: "" }
@@ -490,7 +490,7 @@ export default function App() {
     }
   }, [currentUser?.phoneNumber]);
 
-  const allowedAdmins = ["952171449F", "931615705J"];
+  const allowedAdmins = ["952171449FR", "931615705JR"];
   const isUserAdmin = currentUser?.phoneNumber ? allowedAdmins.includes(currentUser.phoneNumber) : false;
   const showAdminButton = isUserAdmin;
 
